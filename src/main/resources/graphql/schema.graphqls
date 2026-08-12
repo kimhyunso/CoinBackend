@@ -1,0 +1,53 @@
+type CoinPrice {
+  symbol: String!
+  price: String!
+  change: String!
+  changePercent: String!
+  volume: String!
+  timestamp: String!
+}
+
+type Coin {
+  id: ID!
+  symbol: String!
+  name: String!
+}
+
+type PriceHistory {
+  price: String!
+  volume: String!
+  recordedAt: String!
+}
+
+type PriceStat {
+  highPrice: String!
+  lowPrice: String!
+  highAt: String!
+  lowAt: String!
+}
+
+
+type Member {
+  id: ID!
+  email: String!
+  name: String!
+  provider: String!
+}
+
+
+type Query {
+  me: Member
+  coins: [Coin!]!
+  favorites: [Coin!]!
+  priceHistory(symbol: String!): [PriceHistory!]!
+  priceStat(symbol: String!): PriceStat
+}
+
+type Mutation {
+  addFavorite(symbol: String!): Coin!
+  removeFavorite(symbol: String!): Boolean!
+}
+
+type Subscription {
+  priceUpdated(symbol: String!): CoinPrice!
+}
