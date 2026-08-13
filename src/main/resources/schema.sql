@@ -2,6 +2,7 @@ CREATE TABLE member (
     id         BIGINT AUTO_INCREMENT PRIMARY KEY,
     email      VARCHAR(100) NOT NULL UNIQUE,
     name       VARCHAR(50)  NOT NULL,
+    password   VARCHAR(255),
     provider   VARCHAR(20)  NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

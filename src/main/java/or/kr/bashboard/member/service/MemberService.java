@@ -23,7 +23,7 @@ public class MemberService {
 
     // 회원가입
     public void signup(SignupRequest request) {
-        // 이미 가입된 이메일인지 확인
+        validatePassword(request.getPassword());
         Optional<Member> existing = memberRepository.findByEmail(request.getEmail());
 
         if (existing.isPresent()) {
@@ -69,5 +69,20 @@ public class MemberService {
 
         // JWT 발급
         return jwtProvider.generateToken(member.getEmail(), member.getName(), "local");
+    }
+
+    private void validatePassword(String password) {
+        if (password == null || password.length() < 8) {
+            throw new IllegalArgumentException("비밀번호는 8자 이상이어야 합니다.");
+        }
+        if (!password.matches(".*[A-Za-z].*")) {
+            throw new IllegalArgumentException("비밀번호는 영문자를 포함해야 합니다.");
+        }
+        if (!password.matches(".*[0-9].*")) {
+            throw new IllegalArgumentException("비밀번호는 숫자를 포함해야 합니다.");
+        }
+        if (!password.matches(".*[!@#$%^&*()_+\\-=\\[\\]{};':\"\\\\|,.<>\\/?].*")) {
+            throw new IllegalArgumentException("비밀번호는 특수문자를 포함해야 합니다.");
+        }
     }
 }

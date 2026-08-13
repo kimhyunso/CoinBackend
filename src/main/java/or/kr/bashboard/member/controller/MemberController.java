@@ -18,7 +18,6 @@ public class MemberController {
 
     private final MemberService memberService;
 
-    // 회원가입
     // POST /api/auth/signup
     @PostMapping("/signup")
     public Mono<ResponseEntity<Map<String, String>>> signup(@RequestBody SignupRequest request) {
@@ -32,7 +31,6 @@ public class MemberController {
         );
     }
 
-    // 로그인
     // POST /api/auth/login
     @PostMapping("/login")
     public Mono<ResponseEntity<Map<String, String>>> login(@RequestBody LoginRequest request) {
