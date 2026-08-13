@@ -1,8 +1,16 @@
 spring:
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
+            scope: email, profile
   sql:
     init:
       mode: always
-      schema-locations: classpath:schema.sql   # 추가! 명시적으로 경로 지정
+      schema-locations: classpath:schema.sql
   application:
     name: dashboard
   graphql:
@@ -13,11 +21,14 @@ spring:
       connection-init-timeout: 60s
     graphiql:
       enabled: true
+    cors:
+      allowed-origins: "http://localhost:5173"
+      allowed-methods: GET, POST
   h2:
     console:
       enabled: true
   datasource:
-    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1   # 추가! 앱 종료 전까지 DB 유지
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1
     driver-class-name: org.h2.Driver
     username: sa
     password: ""
@@ -25,7 +36,4 @@ spring:
     hibernate:
       ddl-auto: none
     show-sql: true
-    defer-datasource-initialization: true        # 추가! JPA 초기화 후 schema.sql 실행
-  cors: # 추가!
-    allowed-origins: "http://localhost:5173"  # Vite 기본 포트
-    allowed-methods: GET, POST
+    defer-datasource-initialization: true
