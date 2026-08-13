@@ -15,6 +15,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.net.URI;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
@@ -54,8 +55,9 @@ public class BinanceService {
 
         // SUBSCRIBE 메시지
         String subscribeMsg = String.format(
-                "{\"method\":\"SUBSCRIBE\",\"params\":[\"%s@ticker\"],\"id\":1}",
-                symbol.toLowerCase()
+                "{\"method\":\"SUBSCRIBE\",\"params\":[\"%s@ticker\"],\"id\":\"%s\"}",
+                symbol.toLowerCase(),
+                UUID.randomUUID().toString()
         );
 
         client.execute(
@@ -72,7 +74,6 @@ public class BinanceService {
                                     .doOnNext(message -> {
                                         CoinPrice coinPrice = parse(message, upperSymbol);
                                         if (coinPrice != null) {
-                                            log.info("가격 수신: {} = {}", upperSymbol, coinPrice.getPrice());
                                             sink.tryEmitNext(coinPrice);
                                         }
                                     })
@@ -107,28 +108,26 @@ public class BinanceService {
     }
 
     // Binance JSON 파싱
-    // Binance ticker 응답 형식:
-    // { "s": "BTCUSDT", "c": "67842.50", "p": "+1234.20", "P": "+1.85", "v": "12453.231", "T": 1714912345678 }
     private CoinPrice parse(String message, String symbol) {
         try {
             JsonNode node = objectMapper.readTree(message);
 
-            // Combined stream은 {"stream":"...","data":{...}} 형식
-            // data 필드가 있으면 꺼내서 사용
+            // Combined stream은 data 안에 있음
             JsonNode data = node.has("data") ? node.get("data") : node;
 
-            if (!data.has("c") || !data.has("p") || !data.has("P") || !data.has("v") || !data.has("T")) {
+            // T가 아니라 C, E 사용
+            if (!data.has("c") || !data.has("p") || !data.has("P") || !data.has("v") || !data.has("C")) {
                 log.debug("ticker 데이터 아님, 스킵: {}", message);
                 return null;
             }
 
             return CoinPrice.builder()
                     .symbol(symbol)
-                    .price(data.get("c").asText())
-                    .change(data.get("p").asText())
-                    .changePercent(data.get("P").asText())
-                    .volume(data.get("v").asText())
-                    .timestamp(data.get("T").asText())
+                    .price(data.get("c").asText())       // Last price
+                    .change(data.get("p").asText())       // Price change
+                    .changePercent(data.get("P").asText()) // Price change percent
+                    .volume(data.get("v").asText())       // Volume
+                    .timestamp(data.get("C").asText())    // T → C 로 변경!
                     .build();
 
         } catch (Exception e) {
