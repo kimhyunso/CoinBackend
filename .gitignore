@@ -6,7 +6,7 @@ build/
 !**/src/test/**/build/
 
 ### Secret ###
-config.env
+.env
 
 ### STS ###
 .apt_generated

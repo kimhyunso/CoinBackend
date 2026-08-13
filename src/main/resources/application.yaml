@@ -37,3 +37,7 @@ spring:
       ddl-auto: none
     show-sql: true
     defer-datasource-initialization: true
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: 14400000  # 4시간 (ms)
