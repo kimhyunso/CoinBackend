@@ -4,6 +4,7 @@ import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import or.kr.bashboard.coin.modal.CoinPrice;
+import or.kr.bashboard.stats.service.PriceStatService;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.socket.WebSocketMessage;
 import org.springframework.web.reactive.socket.client.ReactorNettyWebSocketClient;
@@ -13,6 +14,7 @@ import reactor.core.publisher.Sinks;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import java.math.BigDecimal;
 import java.net.URI;
 import java.util.Map;
 import java.util.Optional;
@@ -31,6 +33,7 @@ public class BinanceService {
 
     // 심볼별 Sink 관리 (BTCUSDT → Sink, ETHUSDT → Sink ...)
     private final Map<String, Sinks.Many<CoinPrice>> sinkMap = new ConcurrentHashMap<>();
+    private final PriceStatService priceStatService;
 
     // 앱 시작 시 기본 코인들 자동 구독
     @PostConstruct
@@ -79,6 +82,7 @@ public class BinanceService {
                                         if (coinPrice != null) {
                                             latestPriceMap.put(upperSymbol, coinPrice);
                                             sink.tryEmitNext(coinPrice);
+                                            priceStatService.updateStat(upperSymbol, new BigDecimal(coinPrice.getPrice()));
                                         }
                                     })
                                     .doOnError(e -> log.error("Binance WebSocket 에러: {}", e.getMessage()))
