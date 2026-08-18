@@ -15,6 +15,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.net.URI;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -25,6 +26,8 @@ public class BinanceService {
 
     private final ObjectMapper objectMapper;
     private final ReactorNettyWebSocketClient client = new ReactorNettyWebSocketClient();
+
+    private final Map<String, CoinPrice> latestPriceMap = new ConcurrentHashMap<>();
 
     // 심볼별 Sink 관리 (BTCUSDT → Sink, ETHUSDT → Sink ...)
     private final Map<String, Sinks.Many<CoinPrice>> sinkMap = new ConcurrentHashMap<>();
@@ -74,6 +77,7 @@ public class BinanceService {
                                     .doOnNext(message -> {
                                         CoinPrice coinPrice = parse(message, upperSymbol);
                                         if (coinPrice != null) {
+                                            latestPriceMap.put(upperSymbol, coinPrice);
                                             sink.tryEmitNext(coinPrice);
                                         }
                                     })
@@ -134,5 +138,9 @@ public class BinanceService {
             log.error("Binance 메시지 파싱 실패: {}", e.getMessage());
             return null;
         }
+    }
+
+    public Optional<CoinPrice> getLatestPrice(String symbol) {
+        return Optional.ofNullable(latestPriceMap.get(symbol.toUpperCase()));
     }
 }
