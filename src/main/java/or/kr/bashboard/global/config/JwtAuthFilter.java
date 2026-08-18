@@ -31,8 +31,6 @@ public class JwtAuthFilter implements WebFilter {
             String token = authHeader.substring(7);
             if (jwtProvider.validateToken(token)) {
                 String email = jwtProvider.getEmail(token);
-
-                log.info("JWT에서 꺼낸 email: {}", email);  // 추가!
                 UsernamePasswordAuthenticationToken auth =
                         new UsernamePasswordAuthenticationToken(email, null, List.of());
                 return chain.filter(exchange)
