@@ -1,7 +1,7 @@
-# 📊 Crypto Dashboard
+# 📊 CoinDash - 실시간 암호화폐 대시보드
 
-실시간 암호화폐 가격을 보여주는 대시보드 사이드 프로젝트입니다.
-React + Spring Boot 4.1.0 기반으로, Binance WebSocket에서 실시간 데이터를 받아 GraphQL Subscription으로 클라이언트에 push합니다.
+Spring Boot 4.1.0 + React 기반의 실시간 암호화폐 가격 대시보드입니다.
+Binance WebSocket에서 실시간 데이터를 받아 GraphQL Subscription으로 클라이언트에 push합니다.
 
 ---
 
@@ -16,14 +16,17 @@ React + Spring Boot 4.1.0 기반으로, Binance WebSocket에서 실시간 데이
 | GraphQL | Spring for GraphQL |
 | DB | H2 (인메모리) + Spring Data JPA |
 | 실시간 데이터 | Binance WebSocket API |
+| 인증 | Spring Security + OAuth2 + JWT |
 | 빌드 도구 | Gradle |
 
 ### 프론트엔드
 | 항목 | 기술 |
 |------|------|
-| 프레임워크 | React |
-| GraphQL 클라이언트 | Apollo Client |
+| 프레임워크 | React + TypeScript |
+| 스타일 | Tailwind CSS |
+| GraphQL 클라이언트 | Apollo Client 4.x |
 | 실시간 구독 | Apollo `useSubscription` 훅 |
+| 라우팅 | React Router DOM 7.x |
 
 ---
 
@@ -32,21 +35,64 @@ React + Spring Boot 4.1.0 기반으로, Binance WebSocket에서 실시간 데이
 ```
 Binance WebSocket
       |
-      | wss://stream.binance.com (실시간 코인 가격)
+      | wss://data-stream.binance.vision (실시간 코인 가격)
       ↓
 Spring Boot (WebFlux)
       |
       | Flux<CoinPrice> 스트림
       ↓
-GraphQL Subscription
+GraphQL Subscription (WebSocket /graphql)
       |
-      | WebSocket (/graphql)
-      ↓
 React + Apollo Client
       |
       | useSubscription
       ↓
 실시간 대시보드 렌더링
+```
+
+---
+
+## 📁 프로젝트 구조
+
+```
+src/main/java/or/kr/bashboard/
+├── coin/
+│   ├── controller/
+│   │   ├── CoinController.java         # Subscription + coins Query
+│   │   └── FavoriteController.java     # 즐겨찾기 Query/Mutation
+│   ├── entity/
+│   │   ├── Coin.java                   # 코인 엔티티
+│   │   └── Favorite.java              # 즐겨찾기 엔티티
+│   ├── model/
+│   │   └── CoinPrice.java             # GraphQL 응답 모델 (Binance 데이터)
+│   ├── repository/
+│   │   ├── CoinRepository.java
+│   │   └── FavoriteRepository.java
+│   └── service/
+│       ├── BinanceService.java         # Binance WebSocket 연결/스트림 관리
+│       └── FavoriteService.java        # 즐겨찾기 비즈니스 로직
+├── member/
+│   ├── controller/
+│   │   └── MemberController.java       # 회원가입/로그인 REST API
+│   ├── dto/
+│   │   ├── SignupRequest.java
+│   │   └── LoginRequest.java
+│   ├── entity/
+│   │   └── Member.java                 # 회원 엔티티
+│   ├── repository/
+│   │   └── MemberRepository.java
+│   └── service/
+│       └── MemberService.java          # 회원가입/로그인 비즈니스 로직
+└── global/
+    ├── config/
+    │   ├── SecurityConfig.java         # Spring Security + CORS 설정
+    │   ├── WebSocketConfig.java        # CORS 설정
+    │   └── JwtAuthFilter.java          # JWT 인증 필터
+    ├── jwt/
+    │   └── JwtProvider.java            # JWT 발급/검증
+    └── oauth/
+        ├── OAuth2SuccessHandler.java   # 소셜 로그인 성공 후 JWT 발급
+        └── OAuth2UserService.java      # 소셜 로그인 유저 정보 처리
 ```
 
 ---
@@ -66,13 +112,25 @@ java {
     }
 }
 
+dependencyManagement {
+    imports {
+        mavenBom 'me.paulschwarz:spring-dotenv-bom:5.1.0'
+    }
+}
+
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
     implementation 'org.springframework.boot:spring-boot-starter-graphql'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+    developmentOnly 'me.paulschwarz:springboot4-dotenv'
     compileOnly 'org.projectlombok:lombok'
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
     runtimeOnly 'com.h2database:h2'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
     annotationProcessor 'org.projectlombok:lombok'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
@@ -85,90 +143,68 @@ dependencies {
 
 ---
 
-## ⚙️ 설정 (`application.yml`)
+## 🗄 DB 설계 (`schema.sql`)
 
-```yaml
-spring:
-  application:
-    name: dashboard
-  graphql:
-    http:
-      path: /graphql
-    websocket:
-      path: /graphql
-      connection-init-timeout: 60s
-    graphiql:
-      enabled: true
-  h2:
-    console:
-      enabled: true
-  datasource:
-    url: jdbc:h2:mem:testdb
-    driver-class-name: org.h2.Driver
-    username: sa
-    password: ""
-  jpa:
-    hibernate:
-      ddl-auto: create-drop
-    show-sql: true
+```sql
+CREATE TABLE member (
+    id         BIGINT AUTO_INCREMENT PRIMARY KEY,
+    email      VARCHAR(100) NOT NULL UNIQUE,
+    name       VARCHAR(50)  NOT NULL,
+    password   VARCHAR(255),           -- 소셜 로그인은 null
+    provider   VARCHAR(20)  NOT NULL,  -- google / local
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE coin (
+    id         BIGINT AUTO_INCREMENT PRIMARY KEY,
+    symbol     VARCHAR(20)  NOT NULL UNIQUE,
+    name       VARCHAR(50)  NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE favorite (
+    id         BIGINT AUTO_INCREMENT PRIMARY KEY,
+    member_id  BIGINT NOT NULL,
+    coin_id    BIGINT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (member_id) REFERENCES member(id) ON DELETE CASCADE,
+    FOREIGN KEY (coin_id)   REFERENCES coin(id)   ON DELETE CASCADE
+);
+
+CREATE TABLE price_history (
+    id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+    coin_id     BIGINT         NOT NULL,
+    price       DECIMAL(20, 8) NOT NULL,
+    volume      DECIMAL(30, 8) NOT NULL,
+    recorded_at TIMESTAMP      NOT NULL,
+    FOREIGN KEY (coin_id) REFERENCES coin(id) ON DELETE CASCADE
+);
+
+CREATE TABLE price_stat (
+    id         BIGINT AUTO_INCREMENT PRIMARY KEY,
+    coin_id    BIGINT         NOT NULL UNIQUE,
+    high_price DECIMAL(20, 8) NOT NULL,
+    low_price  DECIMAL(20, 8) NOT NULL,
+    high_at    TIMESTAMP      NOT NULL,
+    low_at     TIMESTAMP      NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (coin_id) REFERENCES coin(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_price_history_coin_time
+    ON price_history (coin_id, recorded_at DESC);
+
+INSERT INTO coin (symbol, name) VALUES
+    ('BTCUSDT', 'Bitcoin'),
+    ('ETHUSDT', 'Ethereum'),
+    ('BNBUSDT', 'BNB'),
+    ('SOLUSDT', 'Solana'),
+    ('XRPUSDT', 'XRP');
 ```
 
 ---
 
-## 📡 Binance WebSocket 데이터
-
-별도 API 키나 회원가입 없이 바로 연결 가능합니다.
-
-**엔드포인트**
-```
-wss://stream.binance.com:9443/ws/btcusdt@ticker
-```
-
-**수신 데이터 예시**
-```json
-{
-  "s": "BTCUSDT",
-  "c": "67842.50",
-  "p": "+1234.20",
-  "P": "+1.85",
-  "v": "12453.231",
-  "T": 1714912345678
-}
-```
-
-| 필드 | 설명 |
-|------|------|
-| `s` | 심볼 (BTCUSDT 등) |
-| `c` | 현재가 |
-| `p` | 가격 변동 (절대값) |
-| `P` | 변동률 (%) |
-| `v` | 거래량 |
-| `T` | 타임스탬프 |
-
----
-
-## 🚀 실행 방법
-
-### 백엔드
-```bash
-./gradlew bootRun
-```
-
-서버 실행 후 접근 가능한 URL:
-- GraphQL 엔드포인트: `http://localhost:8080/graphql`
-- GraphiQL (테스트 UI): `http://localhost:8080/graphiql`
-- H2 콘솔: `http://localhost:8080/h2-console`
-
-### 프론트엔드
-```bash
-cd frontend
-npm install
-npm start
-```
-
----
-
-## 📋 GraphQL 스키마 (예정)
+## 📡 GraphQL 스키마 (`schema.graphqls`)
 
 ```graphql
 type CoinPrice {
@@ -180,8 +216,43 @@ type CoinPrice {
   timestamp: String!
 }
 
+type Coin {
+  id: ID!
+  symbol: String!
+  name: String!
+}
+
+type PriceHistory {
+  price: String!
+  volume: String!
+  recordedAt: String!
+}
+
+type PriceStat {
+  highPrice: String!
+  lowPrice: String!
+  highAt: String!
+  lowAt: String!
+}
+
+type Member {
+  id: ID!
+  email: String!
+  name: String!
+  provider: String!
+}
+
 type Query {
-  latestPrice(symbol: String!): CoinPrice
+  me: Member
+  coins: [Coin!]!
+  favorites: [Coin!]!
+  priceHistory(symbol: String!, page: Int, size: Int): [PriceHistory!]!
+  priceStat(symbol: String!): PriceStat
+}
+
+type Mutation {
+  addFavorite(symbol: String!): Coin!
+  removeFavorite(symbol: String!): Boolean!
 }
 
 type Subscription {
@@ -191,46 +262,85 @@ type Subscription {
 
 ---
 
-## 🗂 프로젝트 구조 (예정)
+## 🔐 인증 흐름
 
+### 구글 소셜 로그인
 ```
-src/
-└── main/
-    ├── java/com/example/dashboard/
-    │   ├── controller/
-    │   │   └── CoinController.java       # @QueryMapping, @SubscriptionMapping
-    │   ├── service/
-    │   │   └── BinanceService.java       # WebClient로 Binance 연결
-    │   ├── model/
-    │   │   └── CoinPrice.java            # 데이터 모델
-    │   └── DashboardApplication.java
-    └── resources/
-        ├── graphql/
-        │   └── schema.graphqls           # GraphQL 스키마
-        └── application.yml
+브라우저 → /oauth2/authorization/google
+      ↓
+구글 로그인 완료
+      ↓
+OAuth2UserService → DB에 Member 저장/조회
+      ↓
+OAuth2SuccessHandler → JWT 발급
+      ↓
+http://localhost:5173?token=xxx 리디렉션
+      ↓
+React TokenHandler → localStorage 저장
+```
+
+### 일반 로그인
+```
+POST /api/auth/login { email, password }
+      ↓
+MemberService → 비밀번호 검증
+      ↓
+JwtProvider → JWT 발급
+      ↓
+{ token: "eyJhbGc..." } 응답
+```
+
+### JWT 인증 필터
+```
+GraphQL 요청 (Authorization: Bearer 토큰)
+      ↓
+JwtAuthFilter → 토큰 파싱
+      ↓
+ReactiveSecurityContextHolder에 저장
+      ↓
+FavoriteController.getCurrentMember() → 현재 유저 조회
 ```
 
 ---
 
-## 📌 개발 순서
+## 🚀 실행 방법
 
-- [x] 기술 스택 선정
-- [x] 프로젝트 초기 설정 (`build.gradle`, `application.yml`)
-- [ ] GraphQL 스키마 작성
-- [ ] Binance WebSocket 연결 (`WebClient`)
-- [ ] GraphQL Subscription 구현 (`Flux<CoinPrice>`)
-- [ ] React + Apollo Client 연결
-- [ ] 실시간 대시보드 UI 구현
+### 환경변수 설정 (`.env`)
+```
+GOOGLE_CLIENT_ID=구글_클라이언트_ID
+GOOGLE_CLIENT_SECRET=구글_클라이언트_시크릿
+JWT_SECRET=32자_이상_랜덤_문자열
+```
+
+### 백엔드 실행
+```bash
+./gradlew bootRun
+```
+
+### 접근 가능한 URL
+| URL | 설명 |
+|-----|------|
+| `http://localhost:8080/graphql` | GraphQL 엔드포인트 |
+| `http://localhost:8080/graphiql` | GraphQL 테스트 UI |
 
 ---
 
-## 💡 왜 이 기술 스택인가?
+## 📌 개발 현황
 
-**WebFlux를 선택한 이유**
-Spring MVC(동기)와 달리 WebFlux는 논블로킹 방식으로 동작합니다. Binance에서 실시간으로 쏟아지는 데이터를 `Flux` 스트림으로 처리하고 수많은 클라이언트에 동시에 push하는 데 적합합니다.
+### 완료
+- [x] Spring Boot 4.1.0 + WebFlux 설정
+- [x] Binance WebSocket 연결 (실시간 코인 가격)
+- [x] GraphQL Subscription (실시간 push)
+- [x] GraphQL Query (코인 목록, 즐겨찾기)
+- [x] GraphQL Mutation (즐겨찾기 추가/삭제)
+- [x] 구글 소셜 로그인 (OAuth2 + JWT)
+- [x] 일반 회원가입/로그인
+- [x] JWT 인증 필터
+- [x] 비밀번호 유효성 검증 (8자 이상, 영문/숫자/특수문자)
+- [x] 소셜 로그인 이메일 일반 가입 차단
 
-**GraphQL Subscription을 선택한 이유**
-REST API는 클라이언트가 주기적으로 요청해야 하지만(Polling), GraphQL Subscription은 서버가 데이터 변경 시 클라이언트에 자동으로 push합니다. WebSocket 위에서 동작하며 진짜 실시간 경험을 제공합니다.
-
-**Binance WebSocket을 선택한 이유**
-주식 실시간 데이터는 거래소 라이선스 구조로 인해 유료입니다. 반면 코인 거래소(Binance 등)는 거래량 증대를 위해 실시간 데이터를 무료로 공개합니다. API 키 없이 즉시 연결 가능합니다.
+### 예정
+- [ ] 가격 히스토리 누적 저장 및 조회
+- [ ] 고가/저가 통계 (PriceStat)
+- [ ] 비밀번호 변경 API
+- [ ] me Query (내 정보 GraphQL 조회)

@@ -1,4 +1,4 @@
-package or.kr.bashboard.coin.model;
+package or.kr.bashboard.coin.modal;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

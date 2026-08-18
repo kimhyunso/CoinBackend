@@ -39,7 +39,7 @@ type Query {
   me: Member
   coins: [Coin!]!
   favorites: [Coin!]!
-  priceHistory(symbol: String!): [PriceHistory!]!
+  priceHistory(symbol: String!, page: Int, size: Int): [PriceHistory!]!
   priceStat(symbol: String!): PriceStat
 }
 
